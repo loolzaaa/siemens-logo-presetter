@@ -17,8 +17,9 @@ public class DeviceScannerManager {
         return deviceScannerManager;
     }
 
-    public List<DeviceInfo> scan() {
-        final String hostname = getBindHostname();
+    public List<DeviceInfo> scan(String customHost) {
+        final String hostname = customHost != null ? customHost : getBindHostname();
+        System.out.println("Current hostname: " + hostname);
         DeviceScanner ds = new DeviceScanner(hostname);
         ds.sendDatagram();
         return ds.receiveDatagram();

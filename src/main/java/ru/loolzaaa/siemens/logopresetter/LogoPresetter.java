@@ -44,6 +44,10 @@ public class LogoPresetter {
                 .metavar("GATEWAY")
                 .help("new gateway address for device");
 
+        parser.addArgument("--host")
+                .metavar("HOST")
+                .help("custom host address for scan purposes");
+
         Namespace n = null;
         try {
             n = parser.parseArgs(args);
@@ -85,7 +89,7 @@ public class LogoPresetter {
             ipConfig.gateway = n.getString("set_gateway");
             logoPresetter.setDeviceProperties(n.getString("ip"), ipConfig);
         } else if ("scan".equals(mode)) {
-            logoPresetter.scanAllDevices();
+            logoPresetter.scanAllDevices(n.getString("host"));
         } else {
             throw new IllegalArgumentException("Incorrect mode: " + mode);
         }
@@ -158,8 +162,8 @@ public class LogoPresetter {
         }
     }
 
-    private void scanAllDevices() {
-        List<DeviceInfo> scan = DeviceScannerManager.getInstance().scan();
+    private void scanAllDevices(String customHost) {
+        List<DeviceInfo> scan = DeviceScannerManager.getInstance().scan(customHost);
         System.out.println(scan);
     }
 }

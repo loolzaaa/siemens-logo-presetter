@@ -1,5 +1,6 @@
 package ru.loolzaaa.siemens.logopresetter.scan;
 
+import com.sun.jna.Platform;
 import ru.loolzaaa.siemens.logopresetter.config.DeviceType;
 import ru.loolzaaa.siemens.logopresetter.util.IPV4Utils;
 
@@ -20,14 +21,12 @@ public class DeviceScanner {
 
     private final byte[] buffer = new byte[30];
 
-    private static final int PLATFORM = 2; //Windows, Android = 8, Linux = 1 TODO
-
     public DeviceScanner(String hostname) {
         try {
             this.ds = new DatagramSocket(new InetSocketAddress(hostname, 0));
             this.ds.setBroadcast(true);
             this.broadcastAddress = InetAddress.getByName("255.255.255.255");
-            if (PLATFORM == 2) {
+            if (Platform.isWindows()) {
                 this.receiveDs = new DatagramSocket(new InetSocketAddress(hostname, this.ds.getLocalPort() + 1));
             } else {
                 this.receiveDs = new DatagramSocket(this.ds.getLocalPort() + 1);
@@ -58,14 +57,13 @@ public class DeviceScanner {
         try {
             if (ds != null) {
                 ds.send(sendDatagramPacket);
-                if (PLATFORM == 2 && receiveDs != null) {
+                if (Platform.isWindows() && receiveDs != null) {
                     receiveDs.send(sendDatagramPacket);
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
 
     public List<DeviceInfo> receiveDatagram() {
@@ -73,14 +71,17 @@ public class DeviceScanner {
         List<DeviceInfo> deviceInfoList = new ArrayList<>(10);
         DatagramPacket receiveDatagramPacket = new DatagramPacket(buffer, buffer.length);
 
-        while(true) {
+        int datagramCounter = 0;
+        while (true) {
             try {
                 receiveDs.receive(receiveDatagramPacket);
                 DeviceInfo deviceInfo = analysisDatagram();
                 if (deviceInfo != null && !deviceInfoList.contains(deviceInfo)) {
+                    datagramCounter++;
                     deviceInfoList.add(deviceInfo);
                 }
             } catch (Exception e) {
+                System.out.printf("Received %d datagrams", datagramCounter);
                 closeDatagramSocket();
                 return deviceInfoList;
             }
@@ -100,14 +101,14 @@ public class DeviceScanner {
             deviceType = DeviceType.valueOf(buffer[index++] & 255);
             hwId = buffer[index++] & 255;
 
-            for(fwSeries = 0; fwSeries < 4; ++fwSeries) {
+            for (fwSeries = 0; fwSeries < 4; ++fwSeries) {
                 fromAddress.append(buffer[index++] & 255);
                 if (fwSeries < 3) {
                     fromAddress.append(".");
                 }
             }
         } else {
-            for(fwSeries = 0; fwSeries < 4; ++fwSeries) {
+            for (fwSeries = 0; fwSeries < 4; ++fwSeries) {
                 fromAddress.append(buffer[index++] & 255);
                 if (fwSeries < 3) {
                     fromAddress.append(".");
@@ -123,7 +124,7 @@ public class DeviceScanner {
 
         int ip;
         String logoIpAddress;
-        for(ip = 0; ip < 6; ++ip) {
+        for (ip = 0; ip < 6; ++ip) {
             logoIpAddress = String.format("%02X", buffer[index++]);
             logoMacAddress.append(logoIpAddress);
             if (ip < 5) {
@@ -133,21 +134,21 @@ public class DeviceScanner {
 
         ip = 0;
 
-        for(int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 4; ++i) {
             ip = ip << 8 | buffer[index++] & 255;
         }
 
         logoIpAddress = IPV4Utils.getInstance().formatToString(ip);
         int mask = 0;
 
-        for(int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 4; ++i) {
             mask = mask << 8 | buffer[index++] & 255;
         }
 
         String logoMask = IPV4Utils.getInstance().formatToString(mask);
         int gate = 0;
 
-        for(int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 4; ++i) {
             gate = gate << 8 | buffer[index++] & 255;
         }
 
@@ -172,7 +173,7 @@ public class DeviceScanner {
     }
 
     private static void configRPFilter4LinuxAndMac() {
-        if (PLATFORM == 1) {
+        if (Platform.isLinux()) {
             try {
                 Runtime.getRuntime().exec("sudo sysctl -w net.ipv4.conf.all.rp_filter=0");
             } catch (IOException e) {

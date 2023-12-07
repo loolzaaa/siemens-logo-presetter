@@ -7,7 +7,7 @@
 
     <groupId>ru.loolzaaa</groupId>
     <artifactId>siemens-logo-presetter</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2</version>
 
     <properties>
         <java.version>11</java.version>
@@ -33,6 +33,12 @@
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>${httpclient.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <version>5.13.0</version>
         </dependency>
 
         <dependency>
