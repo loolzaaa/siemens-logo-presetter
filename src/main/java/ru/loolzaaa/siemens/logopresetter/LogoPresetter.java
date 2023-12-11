@@ -12,8 +12,11 @@ import ru.loolzaaa.siemens.logopresetter.net.DataTransfer;
 import ru.loolzaaa.siemens.logopresetter.net.HttpDataTransfer;
 import ru.loolzaaa.siemens.logopresetter.scan.DeviceInfo;
 import ru.loolzaaa.siemens.logopresetter.scan.DeviceScannerManager;
+import ru.loolzaaa.siemens.logopresetter.server.PresetterHttpServer;
 import ru.loolzaaa.siemens.logopresetter.util.IPV4Utils;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -25,12 +28,13 @@ public class LogoPresetter {
                 .description("Settings base properties for Siemens Logo 8 and newer.")
                 .defaultHelp(true);
         parser.addArgument("mode")
-                .choices("scan", "show", "set")
+                .choices("scan", "show", "set", "server")
                 .required(true)
                 .help("Application operation mode.\n" +
                         "Scan - start scan process.\n" +
                         "Show - receive details about device.\n" +
-                        "Set - apply new settings to device.");
+                        "Set - apply new settings to device.\n" +
+                        "Server - start presetter int server mode on 12000 port");
 
         parser.addArgument("--ip")
                 .help("current ip address for device");
@@ -63,14 +67,18 @@ public class LogoPresetter {
                 throw new ArgumentParserException("You must specify --ip and all --set-XXX arguments for 'set' mode", parser);
             }
             if ("set".equals(n.get("mode")) && incorrectSetParams) {
-                if (IPV4Utils.getInstance().formatToInt(n.getString("set_ip")) == 0) {
-                    throw new ArgumentParserException("New IP Address format error", parser);
-                }
-                if (IPV4Utils.getInstance().formatToInt(n.getString("set_mask")) == 0) {
-                    throw new ArgumentParserException("New Mask Address format error", parser);
-                }
-                if (IPV4Utils.getInstance().formatToInt(n.getString("set_gateway")) == 0) {
-                    throw new ArgumentParserException("New Gateway Address format error", parser);
+                try {
+                    if (IPV4Utils.getInstance().formatToInt(n.getString("set_ip")) == 0) {
+                        throw new ArgumentParserException("New IP Address format error", parser);
+                    }
+                    if (IPV4Utils.getInstance().formatToInt(n.getString("set_mask")) == 0) {
+                        throw new ArgumentParserException("New Mask Address format error", parser);
+                    }
+                    if (IPV4Utils.getInstance().formatToInt(n.getString("set_gateway")) == 0) {
+                        throw new ArgumentParserException("New Gateway Address format error", parser);
+                    }
+                } catch (IllegalArgumentException e) {
+                    throw new ArgumentParserException(e.getMessage(), parser);
                 }
             }
         } catch (ArgumentParserException e) {
@@ -90,12 +98,15 @@ public class LogoPresetter {
             logoPresetter.setDeviceProperties(n.getString("ip"), ipConfig);
         } else if ("scan".equals(mode)) {
             logoPresetter.scanAllDevices(n.getString("host"));
+        } else if ("server".equals(mode)) {
+            logoPresetter.startServer(logoPresetter);
         } else {
             throw new IllegalArgumentException("Incorrect mode: " + mode);
         }
     }
 
-    private void showDeviceDetails(String ipAddress) {
+    public List<Object> showDeviceDetails(String ipAddress) {
+        List<Object> deviceDetails = new ArrayList<>(3);
         DataTransfer dataTransfer = null;
         try {
             dataTransfer = HttpDataTransfer.openConnection(ipAddress, -1);
@@ -103,11 +114,13 @@ public class LogoPresetter {
             String[] strs = fwVersion.split("\\.");
             fwVersion = strs[0] + "." + strs[1] + "." + strs[2];
             System.out.println(fwVersion);
+            deviceDetails.add(fwVersion);
 
             BaseHardware.IPConfig ipConfig = ((BaseHardware) dataTransfer.getHardware()).getIPConfig(dataTransfer);
             System.out.println("Ip address: " + ipConfig.ip);
             System.out.println("Mask: " + ipConfig.mask);
             System.out.println("Gateway: " + ipConfig.gateway);
+            deviceDetails.add(ipConfig);
 
             if (!dataTransfer.isTransmissionPossible()) {
                 throw new IllegalStateException("Transmission not possible");
@@ -117,6 +130,8 @@ public class LogoPresetter {
             dataTransfer.startLogo();
 
             System.out.println("S7 access: " + (accessControlSettings.getS7Access().isEnabled() ? "enabled" : "disabled"));
+            System.out.println("Modbus access: " + (accessControlSettings.getModbusAccess().isEnabled() ? "enabled" : "disabled"));
+            deviceDetails.add(accessControlSettings);
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
@@ -124,9 +139,10 @@ public class LogoPresetter {
                 dataTransfer.closePort();
             }
         }
+        return deviceDetails;
     }
 
-    private void setDeviceProperties(String ipAddress, BaseHardware.IPConfig ipConfig) {
+    public void setDeviceProperties(String ipAddress, BaseHardware.IPConfig ipConfig) {
         DataTransfer dataTransfer = null;
         try {
             dataTransfer = HttpDataTransfer.openConnection(ipAddress, -1);
@@ -162,8 +178,18 @@ public class LogoPresetter {
         }
     }
 
-    private void scanAllDevices(String customHost) {
+    public List<DeviceInfo> scanAllDevices(String customHost) {
         List<DeviceInfo> scan = DeviceScannerManager.getInstance().scan(customHost);
         System.out.println(scan);
+        return scan;
+    }
+
+    public void startServer(LogoPresetter logoPresetter) {
+        PresetterHttpServer presetterHttpServer = new PresetterHttpServer(logoPresetter);
+        try {
+            presetterHttpServer.start();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
