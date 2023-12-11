@@ -81,7 +81,7 @@ public class DeviceScanner {
                     deviceInfoList.add(deviceInfo);
                 }
             } catch (Exception e) {
-                System.out.printf("Received %d datagrams", datagramCounter);
+                System.out.printf("Received %d datagrams\n", datagramCounter);
                 closeDatagramSocket();
                 return deviceInfoList;
             }
