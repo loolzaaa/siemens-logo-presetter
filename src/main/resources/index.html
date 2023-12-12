@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body style="padding: 16px;">
+<div style="width: 400px; margin-bottom: 20px;">
+    <fieldset>
+        <legend>Scan Devices</legend>
+        <button id="scanBtn" style="width: 100%" onclick="scan()">Scan</button>
+    </fieldset>
+</div>
+<div style="width: 400px; margin-bottom: 20px;">
+    <fieldset>
+        <legend>Get Network Parameters</legend>
+        <table>
+            <tr>
+                <td style="width: 50%">
+                    <label for="getIp" style="margin-right: 8px;">Device IP Address</label>
+                </td>
+                <td style="width: 50%">
+                    <input id="getIp" type="text" placeholder="Enter ip address" style="width: 100%">
+                </td>
+            </tr>
+        </table>
+        <button id="showBtn" style="width: 100%; margin-top: 8px;" onclick="show()">Show</button>
+        <table style="margin-top: 8px; width:100%">
+            <tbody id="deviceInfo" style="display: none;"></tbody>
+        </table>
+    </fieldset>
+</div>
+<div style="width: 400px;">
+    <fieldset>
+        <legend>Set Network Parameters</legend>
+        <table>
+            <tr>
+                <td style="width: 50%">
+                    <label for="oldIp" style="margin-right: 8px;">Current IP Address</label>
+                </td>
+                <td style="width: 50%">
+                    <input id="oldIp" type="text" placeholder="Enter ip address" style="width: 100%">
+                </td>
+            </tr>
+            <tr>
+                <td style="width: 50%">
+                    <label for="setIp" style="margin-right: 8px;">New IP Address</label>
+                </td>
+                <td style="width: 50%">
+                    <input id="setIp" type="text" placeholder="Enter ip address" style="width: 100%">
+                </td>
+            </tr>
+            <tr>
+                <td style="width: 50%">
+                    <label for="setMask" style="margin-right: 8px;">New Mask</label>
+                </td>
+                <td style="width: 50%">
+                    <input id="setMask" type="text" placeholder="Enter ip address" style="width: 100%">
+                </td>
+            </tr>
+            <tr>
+                <td style="width: 50%">
+                    <label for="setGateway" style="margin-right: 8px;">New Gateway</label>
+                </td>
+                <td style="width: 50%">
+                    <input id="setGateway" type="text" placeholder="Enter ip address" style="width: 100%">
+                </td>
+            </tr>
+        </table>
+        <button id="setBtn" style="width: 100%; margin-top: 8px;" onclick="set()">Set</button>
+    </fieldset>
+</div>
+</body>
+<script>
+    const scanBtn = document.getElementById('scanBtn')
+    const showBtn = document.getElementById('showBtn')
+    const setBtn = document.getElementById('setBtn')
+
+    function scan() {
+        let customHost = prompt('Do you need to define customHost?')
+
+        let xhr = new XMLHttpRequest()
+        xhr.open('GET', `/scan${customHost ? '?customHost=' + customHost : ''}`)
+        xhr.send()
+
+        toggleButtonDisabled(true)
+
+        xhr.onload = function() {
+            toggleButtonDisabled(false)
+            if (xhr.status >= 400) {
+                alert(`${JSON.parse(xhr.response)?.error}`)
+                return
+            }
+            let devices = JSON.parse(xhr.response)
+            if (devices.length === 0) {
+                alert(`Devices not found`)
+                return
+            }
+            alert(`Found ${devices.length} devices: ${devices.map(el => el.ip).join(', ')}`)
+        }
+
+        xhr.onerror = connError
+    }
+    function show() {
+        let ip = document.getElementById('getIp')?.value
+        if (!ip) {
+            alert(`Cannot find ip address input`)
+            return
+        }
+        let deviceInfoEl = document.getElementById('deviceInfo')
+        if (!deviceInfoEl) {
+            alert(`Cannot find device info element`)
+            return
+        }
+        deviceInfoEl.style.display = 'none'
+        deviceInfoEl.innerHTML = ''
+
+        let xhr = new XMLHttpRequest()
+        xhr.open('GET', `/show?ip=${ip}`)
+        xhr.send()
+
+        toggleButtonDisabled(true)
+
+        xhr.onload = function() {
+            toggleButtonDisabled(false)
+            if (xhr.status >= 400) {
+                alert(`${JSON.parse(xhr.response)?.error}`)
+                return
+            }
+            let deviceInfo = JSON.parse(xhr.response)
+            for (let info in deviceInfo) {
+                let tr = document.createElement('tr')
+                let td1 = document.createElement('td')
+                let td2 = document.createElement('td')
+                td1.innerHTML = `${info}`
+                td1.style.width = '50%'
+                td2.innerHTML = `${deviceInfo[info]}`
+                td2.style.width = '50%'
+                tr.appendChild(td1)
+                tr.appendChild(td2)
+                deviceInfoEl.appendChild(tr)
+            }
+            deviceInfoEl.style.display = 'block'
+        }
+
+        xhr.onerror = connError
+    }
+    function set() {
+        let ip = document.getElementById('oldIp')?.value
+        let setIp = document.getElementById('setIp')?.value
+        let setMask = document.getElementById('setMask')?.value
+        let setGateway = document.getElementById('setGateway')?.value
+        if (!ip || !setIp || !setMask || !setGateway) {
+            alert(`Cannot find ip, setIp, setMask or setGateway address input`)
+            return
+        }
+        let data = `ip=${ip}&setIp=${setIp}&setMask=${setMask}&setGateway=${setGateway}`
+
+        let xhr = new XMLHttpRequest()
+        xhr.open('POST', '/set')
+        xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+        xhr.send(data)
+
+        toggleButtonDisabled(true)
+
+        xhr.onload = function() {
+            toggleButtonDisabled(false)
+            if (xhr.status >= 400) {
+                alert(`${JSON.parse(xhr.response)?.error}`)
+                return
+            }
+            alert(`Successful`)
+        }
+
+        xhr.onerror = connError
+    }
+    const toggleButtonDisabled = function(state) {
+        scanBtn.disabled = state
+        showBtn.disabled = state
+        setBtn.disabled = state
+    }
+    const connError = function() {
+        alert(`Connection error`)
+        toggleButtonDisabled(false)
+    }
+</script>
+</html>
